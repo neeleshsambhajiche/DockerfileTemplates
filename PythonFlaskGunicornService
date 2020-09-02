@@ -1,0 +1,37 @@
+FROM python:3.7-slim
+
+# Set up proxy
+ARG MY_PROXY_URL=http://host:port
+ENV HTTP_PROXY=$MY_PROXY_URL
+ENV HTTPS_PROXY=$MY_PROXY_URL
+ENV FTP_PROXY=$MY_PROXY_URL
+ENV http_proxy=$MY_PROXY_URL
+ENV https_proxy=$MY_PROXY_URL
+ENV ftp_proxy=$MY_PROXY_URL
+
+#Install dev tools
+RUN apt-get update; \
+    apt-get install -y vim gcc nginx curl sudo net-tools procps
+
+WORKDIR /app/service
+
+COPY requirements.txt .
+
+#Install python packages
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy other service files 
+COPY file1 file2  ./
+
+# Setup nginx as reverse proxy for gunicorn
+COPY nginx-service /etc/nginx/sites-available/
+RUN ln -s /etc/nginx/sites-available/nginx-service /etc/nginx/sites-enabled
+
+# Expose service port 8080
+EXPOSE 8080
+
+# Set the time to PDT to match host Centos machine
+RUN cp /usr/share/zoneinfo/PST8PDT /etc/localtime
+
+# Start service. Both commands are executed in one line as only one process can run in the docker at a time
+CMD sleep 1 && /etc/init.d/nginx restart && ./start-gunicorn.sh
