@@ -1,0 +1,48 @@
+FROM centos:7
+
+#Setup of proxies
+RUN echo "proxy=http://host:port">> /etc/yum.conf
+ENV HTTP_PROXY=http://host:port
+ENV HTTPS_PROXY=http://host:port
+ENV http_proxy=http://host:port
+ENV https_proxy=http://host:port
+
+# Install dev tools
+RUN yum clean all; \
+    rpm --rebuilddb; \
+    yum install -y initscripts curl wget which tar sudo rsync openssh-server openssh-clients
+
+# Install java
+RUN yum install -y java-1.8.0-openjdk
+ENV JAVA_HOME=/etc/alternatives/jre
+
+# Install Maven
+ENV MAVEN_VERSION 3.3.9
+RUN wget http://apachemirror.wuchna.com/maven/maven-3/$MAVEN_VERSION/binaries/apache-maven-$MAVEN_VERSION-bin.tar.gz --no-check-certificate \
+  && tar xzf apache-maven-$MAVEN_VERSION-bin.tar.gz -C /usr/share \
+  && mv /usr/share/apache-maven-$MAVEN_VERSION /usr/share/maven \
+  && ln -s /usr/share/maven/bin/mvn /usr/bin/mvn
+ENV MAVEN_HOME /usr/share/maven
+
+# Set the working directory to server folder
+WORKDIR /app/server
+
+#Transfer files
+COPY src src/
+COPY pom.xml .
+
+#Build Server
+RUN $MAVEN_HOME/bin/mvn -Dhttp.proxyHost=host -Dhttp.proxyPort=port -Dhttps.proxyHost=host -Dhttps.proxyPort=port clean package -DskipTests=true
+
+RUN cp /app/server/target/server.jar /app/.
+
+//If the docker timezone is different from host timezone
+RUN cp /usr/share/zoneinfo/PST8PDT /etc/localtime
+
+# Set the working directory to /app
+WORKDIR /app
+
+# Make port 8080 available to the world outside this container
+EXPOSE 8080
+
+CMD java -Duser.timezone="America/Los_Angeles" -cp server.jar Main
